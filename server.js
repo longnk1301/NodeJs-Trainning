@@ -1,22 +1,12 @@
-const ObserveClass = require("./modules/observe");
-
-// Init Observe object
-let Observe = new ObserveClass();
-
-// Define folder to watching, in real project, you should put it in file config or env
-let targetFolder = "../laravel-example/storage/logs";
-
-// Listen event new file has been added
-Observe.on("new-file-has-been-added", (logData) => {
-  // In this step, you can do anything you want, like to push alert message to chatwork, slack...vv
-  // I just print error message to console
-  console.log(logData.message);
+const express = require("express");
+const app = express();
+const initAPIs = require("./routes/api");
+// Cho phép các api của ứng dụng xử lý dữ liệu từ body của request
+app.use(express.json());
+// Khởi tạo các routes cho ứng dụng
+initAPIs(app);
+// chọn một port mà bạn muốn và sử dụng để chạy ứng dụng tại local
+let port = 8017;
+app.listen(port, () => {
+  console.log(`Hello, I'm running at localhost:${port}/`);
 });
-Observe.on("file-has-been-updated", (logData) => {
-  // In this step, you can do anything you want, like to push alert message to chatwork, slack...vv
-  // I just print error message to console
-  console.log(logData.message);
-});
-
-// Start watching folder...
-Observe.watchFolder(targetFolder);
