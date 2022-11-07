@@ -1,113 +1,101 @@
-const jwtHelper = require("../helpers/jwt.helper");
-const debug = console.log.bind(console);
-// Biến cục bộ trên server này sẽ lưu trữ tạm danh sách token
-// Trong dự án thực tế, nên lưu chỗ khác, có thể lưu vào Redis hoặc DB
-let tokenList = {};
-// Thời gian sống của token
-const accessTokenLife = process.env.ACCESS_TOKEN_LIFE || "1h";
-// Mã secretKey này phải được bảo mật tuyệt đối, các bạn có thể lưu vào biến môi trường hoặc file
-const accessTokenSecret =
-  process.env.ACCESS_TOKEN_SECRET ||
-  "access-token-secret-example-trungquandev.com-green-cat-a@";
-// Thời gian sống của refreshToken
-const refreshTokenLife = process.env.REFRESH_TOKEN_LIFE || "3650d";
-// Mã secretKey này phải được bảo mật tuyệt đối, các bạn có thể lưu vào biến môi trường hoặc file
-const refreshTokenSecret =
-  process.env.REFRESH_TOKEN_SECRET ||
-  "refresh-token-secret-example-trungquandev.com-green-cat-a@";
-/**
- * controller login
- * @param {*} req
- * @param {*} res
- */
-let login = async (req, res) => {
+import path from 'path'
+import {
+  generateUniqueSecret,
+  verifyOTPToken,
+  generateOTPToken,
+  generateQRCode,
+} from '../helpers/2fa.js'
+// Lấy đường dẫn thư mục gốc của ứng dụng
+const __dirname = path.resolve()
+/** Vì demo nên mình sẽ tạo một biến giả lập user ở global của file.
+ * Trong dự án thực tế, user và secret riêng của user đó PHẢI được lưu vào Database
+*/
+const MOCK_USER = {
+  username: 'longnk',
+  password: 'longnk',
+  is2FAEnabled: true,
+  secret: generateUniqueSecret()
+}
+/** controller get login page */
+const getLoginPage = async (req, res) => {
+  return res.sendFile(path.join(`${__dirname}/src/views/login.html`))
+}
+/** controller get enable 2FA page */
+const getEnable2FAPage = async (req, res) => {
+  return res.sendFile(path.join(`${__dirname}/src/views/enable2FA.html`))
+}
+/** controller get verify 2FA page */
+const getverify2FAPage = async (req, res) => {
+  return res.sendFile(path.join(`${__dirname}/src/views/verify2FA.html`))
+}
+/** controller xử lý đăng nhập */
+const postLogin = async (req, res) => {
   try {
-    debug(
-      `Đang giả lập hành động đăng nhập thành công với Email: ${req.body.email} và Password: ${req.body.password}`
-    );
-    // Mình sẽ comment mô tả lại một số bước khi làm thực tế cho các bạn như sau nhé:
-    // - Đầu tiên Kiểm tra xem email người dùng đã tồn tại trong hệ thống hay chưa?
-    // - Nếu chưa tồn tại thì reject: User not found.
-    // - Nếu tồn tại user thì sẽ lấy password mà user truyền lên, băm ra và so sánh với mật khẩu của user lưu trong Database
-    // - Nếu password sai thì reject: Password is incorrect.
-    // - Nếu password đúng thì chúng ta bắt đầu thực hiện tạo mã JWT và gửi về cho người dùng.
-    // Trong ví dụ demo này mình sẽ coi như tất cả các bước xác thực ở trên đều ok, mình chỉ xử lý phần JWT trở về sau thôi nhé:
-    debug(`Thực hiện fake thông tin user...`);
-    const userFakeData = {
-      _id: "1234-5678-910JQK-tqd",
-      name: "Trung Quân",
-      email: req.body.email,
-    };
-    debug(`Thực hiện tạo mã Token, [thời gian sống 1 giờ.]`);
-    const accessToken = await jwtHelper.generateToken(
-      userFakeData,
-      accessTokenSecret,
-      accessTokenLife
-    );
-
-    debug(`Thực hiện tạo mã Refresh Token, [thời gian sống 10 năm] =))`);
-    const refreshToken = await jwtHelper.generateToken(
-      userFakeData,
-      refreshTokenSecret,
-      refreshTokenLife
-    );
-    // Lưu lại 2 mã access & Refresh token, với key chính là cái refreshToken để đảm bảo unique và không sợ hacker sửa đổi dữ liệu truyền lên.
-    // lưu ý trong dự án thực tế, nên lưu chỗ khác, có thể lưu vào Redis hoặc DB
-    tokenList[refreshToken] = { accessToken, refreshToken };
-
-    debug(`Gửi Token và Refresh Token về cho client...`);
-    return res.status(200).json({ accessToken, refreshToken });
-  } catch (error) {
-    return res.status(500).json(error);
-  }
-};
-/**
- * controller refreshToken
- * @param {*} req
- * @param {*} res
- */
-let refreshToken = async (req, res) => {
-  // User gửi mã refresh token kèm theo trong body
-  const refreshTokenFromClient = req.body.refreshToken;
-  // debug("tokenList: ", tokenList);
-
-  // Nếu như tồn tại refreshToken truyền lên và nó cũng nằm trong tokenList của chúng ta
-  if (refreshTokenFromClient && tokenList[refreshTokenFromClient]) {
-    try {
-      // Verify kiểm tra tính hợp lệ của cái refreshToken và lấy dữ liệu giải mã decoded
-      const decoded = await jwtHelper.verifyToken(
-        refreshTokenFromClient,
-        refreshTokenSecret
-      );
-      // Thông tin user lúc này các bạn có thể lấy thông qua biến decoded.data
-      // có thể mở comment dòng debug bên dưới để xem là rõ nhé.
-      // debug("decoded: ", decoded);
-      const userFakeData = decoded.data;
-      debug(
-        `Thực hiện tạo mã Token trong bước gọi refresh Token, [thời gian sống vẫn là 1 giờ.]`
-      );
-      const accessToken = await jwtHelper.generateToken(
-        userFakeData,
-        accessTokenSecret,
-        accessTokenLife
-      );
-      // gửi token mới về cho người dùng
-      return res.status(200).json({ accessToken });
-    } catch (error) {
-      // Lưu ý trong dự án thực tế hãy bỏ dòng debug bên dưới, mình để đây để debug lỗi cho các bạn xem thôi
-      debug(error);
-      res.status(403).json({
-        message: "Invalid refresh token.",
-      });
+    let user = MOCK_USER
+    const { username, password } = req.body
+    // Giả sử trường hợp đăng nhập thành công
+    if (username === user.username && password === user.password) {
+      // Thực hiện yêu cầu xác thực 2 bước nếu tài khoản user này đã bật xác thực 2 lớp trước đó.
+      if (user.is2FAEnabled) {
+        return res.status(200).json({
+          isCorrectIdentifier: true,
+          is2FAEnabled: true,
+          isLoggedIn: false,
+        })
+      }
+      // Bỏ qua xác thực 2 lớp nếu tài khoản user này không bật xác thực 2 lớp
+      return res.status(200).json({
+        isCorrectIdentifier: true,
+        is2FAEnabled: false,
+        isLoggedIn: true,
+      })
     }
-  } else {
-    // Không tìm thấy token trong request
-    return res.status(403).send({
-      message: "No token provided.",
-    });
+    // Trường hợp đăng nhập thất bại (do thông tin đăng nhập không chính xác)
+    return res.status(200).json({
+      isCorrectIdentifier: false,
+      is2FAEnabled: false,
+      isLoggedIn: false,
+    })
+  } catch (error) {
+    return res.status(500).json(error)
   }
-};
-module.exports = {
-  login: login,
-  refreshToken: refreshToken,
-};
+}
+/** controller xử lý tạo mã otp và gửi về client dạng hình ảnh QR Code */
+const postEnable2FA = async (req, res) => {
+  try {
+    let user = MOCK_USER
+    // đây là tên ứng dụng của các bạn, nó sẽ được hiển thị trên app Google Authenticator hoặc Authy sau khi bạn quét mã QR
+    const serviceName = 'trungquandev.com'
+    // Thực hiện tạo mã OTP
+    const otpAuth = generateOTPToken(user.username, serviceName, user.secret)
+    // console.log(otpAuth)
+    // nếu các bạn console.log cái otpAuth ở trên thì các bạn sẽ thấy rõ hơn về nó, mình ví dụ:
+    // otpauth://totp/trungquandev.com:trungquandev?secret=GYCCWGRLDY3RAFBU&period=30&digits=6&algorithm=SHA1&issuer=trungquandev.com
+    // Tạo ảnh QR Code để gửi về client
+    const QRCodeImage = await generateQRCode(otpAuth)
+    return res.status(200).json({ QRCodeImage })
+  } catch (error) {
+    return res.status(500).json(error)
+  }
+}
+const postVerify2FA = async (req, res) => {
+  try {
+    let user = MOCK_USER
+    const { otpToken } = req.body
+    // Kiểm tra mã token người dùng truyền lên có hợp lệ hay không?
+    const isValid = verifyOTPToken(otpToken, user.secret)
+    /** Sau bước này nếu verify thành công thì thực tế chúng ta sẽ redirect qua trang đăng nhập thành công,
+    còn hiện tại demo thì mình sẽ trả về client là đã verify success hoặc fail */
+    return res.status(200).json({ isValid })
+  } catch (error) {
+    return res.status(500).json(error)
+  }
+}
+export {
+  getLoginPage,
+  getEnable2FAPage,
+  getverify2FAPage,
+  postLogin,
+  postEnable2FA,
+  postVerify2FA,
+}

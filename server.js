@@ -1,12 +1,14 @@
-const express = require("express");
-const app = express();
-const initAPIs = require("./routes/api");
-// Cho phép các api của ứng dụng xử lý dữ liệu từ body của request
-app.use(express.json());
-// Khởi tạo các routes cho ứng dụng
-initAPIs(app);
+import express from 'express'
+import { initAPIs } from './src/routers/api.js'
+
+const app = express()
+// Cho phép lý dữ liệu từ form method POST
+app.use(express.urlencoded({extended: true}))
+app.use(express.json())
+// Khởi tạo các APIs cho ứng dụng
+initAPIs(app)
 // chọn một port mà bạn muốn và sử dụng để chạy ứng dụng tại local
-let port = 8017;
+const port = 8017
 app.listen(port, () => {
-  console.log(`Hello, I'm running at localhost:${port}/`);
-});
+  console.log(`Hello trungquandev.com, I'm running at localhost:${port}/`)
+}) 
